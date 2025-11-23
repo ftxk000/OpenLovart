@@ -188,18 +188,20 @@ function LovartCanvasContent() {
 
             // 处理项目元数据
             if (projectResult.error) throw projectResult.error;
-            if (projectResult.data) {
-                console.log('Project loaded:', projectResult.data);
-                setTitle((projectResult.data as any).title);
+            const project = projectResult.data;
+            if (project) {
+                console.log('Project loaded:', project);
+                setTitle((project as any).title);
             }
 
             // 处理画布元素
             if (elementsResult.error) throw elementsResult.error;
             
-            console.log('Canvas elements loaded:', elementsResult.data?.length || 0);
-            if (elementsResult.data && elementsResult.data.length > 0) {
+            const canvasElements = elementsResult.data;
+            console.log('Canvas elements loaded:', canvasElements?.length || 0);
+            if (canvasElements && canvasElements.length > 0) {
                 // 去重加载的元素
-                const loadedElements = elementsResult.data.map((ce: any) => ce.element_data);
+                const loadedElements = canvasElements.map((ce: any) => ce.element_data);
                 const uniqueElements = Array.from(
                     new Map(loadedElements.map((item: any) => [item.id, item])).values()
                 );
@@ -556,6 +558,19 @@ function LovartCanvasContent() {
             setIsGenerating(false);
         }
     };
+
+    // 显示加载状态
+    if (isLoading) {
+        return (
+            <div className="h-screen w-full bg-white flex items-center justify-center">
+                <div className="text-center">
+                    <div className="w-16 h-16 border-4 border-gray-200 border-t-blue-600 rounded-full animate-spin mx-auto mb-4"></div>
+                    <p className="text-gray-600 font-medium">加载画布中...</p>
+                    <p className="text-gray-400 text-sm mt-2">正在从云端获取数据</p>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="h-screen w-full bg-white relative overflow-hidden">
