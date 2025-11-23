@@ -30,31 +30,34 @@ export default function ProjectsPage() {
             }
 
             try {
-                // Load projects
-                const { data: projectsData, error: projectsError } = await supabase
-                    .from('projects')
-                    .select('*')
-                    .order('updated_at', { ascending: false });
+                // 并行加载项目和积分，减少等待时间
+                const [projectsResult, creditsResult] = await Promise.all([
+                    supabase
+                        .from('projects')
+                        .select('*')
+                        .order('updated_at', { ascending: false }),
+                    (supabase as any)
+                        .from('user_credits')
+                        .select('credits')
+                        .eq('user_id', user.id)
+                        .single()
+                ]);
 
-                if (projectsError) throw projectsError;
-                setProjects(projectsData || []);
+                // 处理项目数据
+                if (projectsResult.error) throw projectsResult.error;
+                setProjects(projectsResult.data || []);
 
-                // Load credits
-                const { data: creditsData, error: creditsError } = await (supabase as any)
-                    .from('user_credits')
-                    .select('credits')
-                    .eq('user_id', user.id)
-                    .single();
-
-                if (creditsError && creditsError.code === 'PGRST116') {
+                // 处理积分数据
+                if (creditsResult.error && creditsResult.error.code === 'PGRST116') {
+                    // 用户积分记录不存在，创建新记录
                     const { data: newData } = await (supabase as any)
                         .from('user_credits')
                         .insert({ user_id: user.id, credits: 1000 })
                         .select()
                         .single();
                     setCredits(newData?.credits || 1000);
-                } else if (!creditsError) {
-                    setCredits(creditsData?.credits || 0);
+                } else if (!creditsResult.error) {
+                    setCredits(creditsResult.data?.credits || 0);
                 }
             } catch (error) {
                 console.error('Failed to load data:', error);

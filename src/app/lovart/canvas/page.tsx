@@ -173,40 +173,41 @@ function LovartCanvasContent() {
             setIsLoading(true);
             console.log('Loading project:', id);
 
-            // Load project metadata
-            const { data: project, error: projectError } = await supabase
-                .from('projects')
-                .select('*')
-                .eq('id', id)
-                .single();
-
-            if (projectError) throw projectError;
-
-            if (project) {
-                console.log('Project loaded:', project);
-                setTitle((project as any).title);
-
-                // Load canvas elements
-                const { data: canvasElements, error: elementsError } = await supabase
+            // 并行加载项目元数据和画布元素，减少数据库往返次数
+            const [projectResult, elementsResult] = await Promise.all([
+                supabase
+                    .from('projects')
+                    .select('*')
+                    .eq('id', id)
+                    .single(),
+                supabase
                     .from('canvas_elements')
                     .select('*')
-                    .eq('project_id', id);
+                    .eq('project_id', id)
+            ]);
 
-                if (elementsError) throw elementsError;
+            // 处理项目元数据
+            if (projectResult.error) throw projectResult.error;
+            if (projectResult.data) {
+                console.log('Project loaded:', projectResult.data);
+                setTitle((projectResult.data as any).title);
+            }
 
-                console.log('Canvas elements loaded:', canvasElements?.length || 0);
-                if (canvasElements && canvasElements.length > 0) {
-                    // Deduplicate loaded elements
-                    const loadedElements = canvasElements.map((ce: any) => ce.element_data);
-                    console.log('Loaded elements before dedup:', loadedElements);
-                    const uniqueElements = Array.from(new Map(loadedElements.map((item: any) => [item.id, item])).values());
-                    console.log('Unique elements after dedup:', uniqueElements);
-                    setElements(uniqueElements as CanvasElement[]);
-                    console.log('Elements state updated with', uniqueElements.length, 'elements');
-                } else {
-                    console.log('No canvas elements found for this project');
-                    setElements([]);
-                }
+            // 处理画布元素
+            if (elementsResult.error) throw elementsResult.error;
+            
+            console.log('Canvas elements loaded:', elementsResult.data?.length || 0);
+            if (elementsResult.data && elementsResult.data.length > 0) {
+                // 去重加载的元素
+                const loadedElements = elementsResult.data.map((ce: any) => ce.element_data);
+                const uniqueElements = Array.from(
+                    new Map(loadedElements.map((item: any) => [item.id, item])).values()
+                );
+                console.log('Unique elements after dedup:', uniqueElements.length);
+                setElements(uniqueElements as CanvasElement[]);
+            } else {
+                console.log('No canvas elements found for this project');
+                setElements([]);
             }
         } catch (error: any) {
             console.error('Failed to load project:', error);
