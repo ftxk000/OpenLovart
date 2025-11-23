@@ -8,6 +8,7 @@ interface AiDesignerPanelProps {
     onGenerate: (prompt: string) => Promise<string>;
     isGenerating: boolean;
     onClose?: () => void;
+    initialPrompt?: string;
 }
 
 interface Message {
@@ -15,9 +16,10 @@ interface Message {
     content: string;
 }
 
-export function AiDesignerPanel({ onGenerate, isGenerating, onClose }: AiDesignerPanelProps) {
-    const [inputValue, setInputValue] = useState('');
+export function AiDesignerPanel({ onGenerate, isGenerating, onClose, initialPrompt }: AiDesignerPanelProps) {
+    const [inputValue, setInputValue] = useState(initialPrompt || '');
     const [messages, setMessages] = useState<Message[]>([]);
+    const [hasAutoSent, setHasAutoSent] = useState(false);
 
     const suggestions = [
         {
@@ -58,6 +60,14 @@ export function AiDesignerPanel({ onGenerate, isGenerating, onClose }: AiDesigne
             }
         }
     };
+
+    // 自动发送 initialPrompt（如果提供）
+    React.useEffect(() => {
+        if (initialPrompt && !hasAutoSent && !isGenerating) {
+            setHasAutoSent(true);
+            handleSend();
+        }
+    }, [initialPrompt, hasAutoSent, isGenerating]);
 
     return (
         <div className="flex flex-col h-full bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">

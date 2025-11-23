@@ -44,32 +44,34 @@ export default function LovartDashboard() {
             }
 
             try {
-                // Load projects
-                const { data: projectsData, error: projectsError } = await supabase
-                    .from('projects')
-                    .select('*')
-                    .order('updated_at', { ascending: false });
+                // 并行加载项目和积分，提升性能
+                const [projectsResult, creditsResult] = await Promise.all([
+                    supabase
+                        .from('projects')
+                        .select('*')
+                        .order('updated_at', { ascending: false }),
+                    (supabase as any)
+                        .from('user_credits')
+                        .select('credits')
+                        .eq('user_id', user.id)
+                        .single()
+                ]);
 
-                if (projectsError) throw projectsError;
-                setProjects(projectsData || []);
+                // 处理项目数据
+                if (projectsResult.error) throw projectsResult.error;
+                setProjects(projectsResult.data || []);
 
-                // Load credits
-                const { data: creditsData, error: creditsError } = await (supabase as any)
-                    .from('user_credits')
-                    .select('credits')
-                    .eq('user_id', user.id)
-                    .single();
-
-                if (creditsError && creditsError.code === 'PGRST116') {
-                    // User doesn't exist, create with 1000 credits
+                // 处理积分数据
+                if (creditsResult.error && creditsResult.error.code === 'PGRST116') {
+                    // 用户积分记录不存在，创建新记录
                     const { data: newData } = await (supabase as any)
                         .from('user_credits')
                         .insert({ user_id: user.id, credits: 1000 })
                         .select()
                         .single();
                     setCredits(newData?.credits || 1000);
-                } else if (!creditsError) {
-                    setCredits(creditsData?.credits || 0);
+                } else if (!creditsResult.error) {
+                    setCredits(creditsResult.data?.credits || 0);
                 }
             } catch (error) {
                 console.error('Failed to load data:', error);
@@ -131,37 +133,28 @@ export default function LovartDashboard() {
         try {
             // 1. Create a new project
             const newProjectId = uuidv4();
-            const { error: projectError } = await (supabase as any)
+            const projectTitle = inputValue.trim().slice(0, 50) || '未命名项目';
+            
+            console.log('Creating project:', { id: newProjectId, title: projectTitle });
+            
+            const { data: projectData, error: projectError } = await (supabase as any)
                 .from('projects')
                 .insert({
                     id: newProjectId,
-                    title: inputValue.trim().slice(0, 50), // Use first 50 chars as title
-                });
+                    title: projectTitle,
+                })
+                .select()
+                .single();
 
             if (projectError) {
                 console.error('Failed to create project:', projectError);
-                throw new Error('创建项目失败');
+                throw new Error(`创建项目失败: ${projectError.message}`);
             }
 
-            // 2. Call Grok API for design suggestions
-            const response = await fetch('/api/generate-design', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    prompt: inputValue.trim(),
-                }),
-            });
+            console.log('Project created successfully:', projectData);
 
-            if (!response.ok) {
-                throw new Error('生成设计建议失败');
-            }
-
-            const data = await response.json();
-            console.log('Design suggestion:', data.suggestion);
-
-            // 3. Redirect to canvas page with the new project
+            // 2. Redirect to canvas page with the new project and prompt
+            // Don't wait for API call, let the canvas page handle it
             window.location.href = `/lovart/canvas?id=${newProjectId}&prompt=${encodeURIComponent(inputValue.trim())}`;
         } catch (error) {
             console.error('Generation failed:', error);

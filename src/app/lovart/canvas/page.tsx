@@ -632,6 +632,7 @@ function LovartCanvasContent() {
                         onGenerate={handleAiChat}
                         isGenerating={isGenerating}
                         onClose={() => setShowChat(false)}
+                        initialPrompt={initialPrompt}
                     />
                 </div>
             )}
